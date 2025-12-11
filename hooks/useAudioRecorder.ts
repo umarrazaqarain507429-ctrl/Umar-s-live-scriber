@@ -5,9 +5,15 @@ interface UseAudioRecorderProps {
   onAudioChunk: (blob: Blob) => void;
   onError: (message: string, type?: 'error' | 'info') => void;
   chunkInterval?: number; // ms
+  enableSystemAudio?: boolean;
 }
 
-export const useAudioRecorder = ({ onAudioChunk, onError, chunkInterval = 5000 }: UseAudioRecorderProps) => {
+export const useAudioRecorder = ({ 
+  onAudioChunk, 
+  onError, 
+  chunkInterval = 5000,
+  enableSystemAudio = true 
+}: UseAudioRecorderProps) => {
   const [recordingState, setRecordingState] = useState<RecordingState>(RecordingState.IDLE);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -24,34 +30,33 @@ export const useAudioRecorder = ({ onAudioChunk, onError, chunkInterval = 5000 }
        let screenStream: MediaStream | null = null;
        let usingScreenAudio = false;
 
-       // 1. Try to Get System Audio (Meeting sound)
-       try {
-         // Check if getDisplayMedia is supported
-         if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
-             screenStream = await navigator.mediaDevices.getDisplayMedia({ 
-                video: true, // Required for getDisplayMedia
-                audio: {
-                  echoCancellation: true, 
-                  noiseSuppression: true, 
-                  autoGainControl: true
-                }
-             });
-         }
-       } catch (err: any) {
-         const errorMessage = String(err);
-         
-         // If blocked by permissions policy, notify and fallback
-         if (errorMessage.includes("permissions policy") || errorMessage.includes("denied")) {
-             if (errorMessage.includes("permissions policy")) {
-                onError("System audio blocked (browser restriction). Falling back to Microphone. Open in new tab to capture system audio.", 'info');
-             } else {
-                // User cancelled the dialog manually, allow them to proceed if they want, 
-                // but usually cancellation means "don't record screen". 
-                // We'll fallback to mic but notify.
-                console.warn("User cancelled system audio selection.");
-             }
-         } else {
-             console.warn("getDisplayMedia failed:", err);
+       // 1. Try to Get System Audio (Meeting sound) - ONLY if enabled
+       if (enableSystemAudio) {
+         try {
+           // Check if getDisplayMedia is supported
+           if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
+               screenStream = await navigator.mediaDevices.getDisplayMedia({ 
+                  video: true, // Required for getDisplayMedia
+                  audio: {
+                    echoCancellation: true, 
+                    noiseSuppression: true, 
+                    autoGainControl: true
+                  }
+               });
+           }
+         } catch (err: any) {
+           const errorMessage = String(err);
+           
+           // If blocked by permissions policy, notify and fallback
+           if (errorMessage.includes("permissions policy") || errorMessage.includes("denied")) {
+               if (errorMessage.includes("permissions policy")) {
+                  onError("System audio blocked (browser restriction). Falling back to Microphone. Open in new tab to capture system audio.", 'info');
+               } else {
+                  console.warn("User cancelled system audio selection.");
+               }
+           } else {
+               console.warn("getDisplayMedia failed:", err);
+           }
          }
        }
 
@@ -165,7 +170,7 @@ export const useAudioRecorder = ({ onAudioChunk, onError, chunkInterval = 5000 }
        onError(`Failed to start recording: ${err.message}`, 'error');
        stopRecording();
      }
-  }, [chunkInterval, onAudioChunk, onError]);
+  }, [chunkInterval, onAudioChunk, onError, enableSystemAudio]);
 
   const stopRecording = useCallback(() => {
     isRecordingRef.current = false;

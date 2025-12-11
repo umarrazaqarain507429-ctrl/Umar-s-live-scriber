@@ -1,5 +1,5 @@
 {
-  "name": "Umar's live scriber",
+  "name": "Scribo",
   "description": "A real-time intelligent audio meeting assistant that transcribes and analyzes discussions using Gemini 2.5 Flash.",
   "requestFramePermissions": [
     "microphone"

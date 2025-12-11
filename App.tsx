@@ -8,7 +8,7 @@ import { Toast } from './components/Toast';
 
 
 function App() {
-  const APP_NAME = "Umar's live scriber";
+  const APP_NAME = "Scribo";
   const APP_SUBTITLE = "Intelligent Meeting Assistant";
 
   const [transcriptChunks, setTranscriptChunks] = useState<TranscriptChunk[]>([]);
@@ -16,6 +16,15 @@ function App() {
   const [analysisResult, setAnalysisResult] = useState<string>("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [lastAnalyzedLength, setLastAnalyzedLength] = useState(0);
+  
+  // Initialize from localStorage to remember preference across reloads
+  const [enableSystemAudio, setEnableSystemAudio] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('enableSystemAudio');
+      return saved !== null ? saved === 'true' : true;
+    }
+    return true;
+  });
   
   // Error handling state
   const [toast, setToast] = useState<{message: string, type: 'error' | 'success' | 'info'} | null>(null);
@@ -59,8 +68,16 @@ function App() {
 
   const { recordingState, startRecording, stopRecording } = useAudioRecorder({
     onAudioChunk: handleAudioChunk,
-    onError: (msg, type) => showToast(msg, type || 'error'),
-    chunkInterval: CHUNK_INTERVAL
+    onError: (msg, type) => {
+        showToast(msg, type || 'error');
+        // Auto-disable system audio if blocked to prevent repetitive errors and persist choice
+        if (msg.includes("System audio blocked")) {
+            setEnableSystemAudio(false);
+            localStorage.setItem('enableSystemAudio', 'false');
+        }
+    },
+    chunkInterval: CHUNK_INTERVAL,
+    enableSystemAudio
   });
 
   // Effect to trigger analysis when transcript grows sufficiently
@@ -105,6 +122,15 @@ function App() {
     setAnalysisResult("");
     setLastAnalyzedLength(0);
     showToast("Transcript cleared.", 'info');
+  };
+
+  const toggleAudioSource = () => {
+      setEnableSystemAudio(prev => {
+          const newVal = !prev;
+          localStorage.setItem('enableSystemAudio', String(newVal));
+          showToast(newVal ? "Mode: System Audio + Mic" : "Mode: Microphone Only", 'info');
+          return newVal;
+      });
   };
 
   return (
@@ -171,6 +197,19 @@ function App() {
       <footer className="h-24 border-t border-slate-700 bg-slate-900/80 backdrop-blur-md flex flex-col md:flex-row items-center justify-center gap-6 px-6 shrink-0 z-20">
         
         <div className="flex items-center gap-6">
+          
+          <button
+            onClick={toggleAudioSource}
+            className={`p-3 rounded-full transition-colors tooltip-trigger border ${enableSystemAudio ? 'text-blue-400 border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20' : 'text-slate-400 border-slate-600 bg-slate-800 hover:text-slate-200'}`}
+            title={enableSystemAudio ? "Mode: System Audio + Mic" : "Mode: Mic Only"}
+          >
+             {enableSystemAudio ? (
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+             ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+             )}
+          </button>
+
           <button
             onClick={handleClear}
             className="p-3 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-full transition-colors tooltip-trigger"
@@ -208,7 +247,7 @@ function App() {
         
         {/* Helper Text */}
         <div className="hidden md:block absolute right-8 text-xs text-slate-500 max-w-[200px] text-right">
-            Captures both meeting audio and your microphone.
+            {enableSystemAudio ? "Captures Meeting Audio & Mic" : "Captures Microphone Only"}
         </div>
       </footer>
     </div>
